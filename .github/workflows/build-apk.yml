@@ -1,0 +1,71 @@
+name: Build Aurex APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Descomprimir Aurex
+        run: |
+          mkdir app
+          ZIP_FILE=$(find . -maxdepth 1 -type f -name "Aurex_PARA_SUBIR_DESDE_TELEFONO*.zip" | head -n 1)
+          echo "Usando: $ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d app
+          ls -la app
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Configurar Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Instalar dependencias
+        working-directory: app
+        run: npm install
+
+      - name: Crear Android
+        working-directory: app
+        run: npx cap add android
+
+      - name: Sincronizar Aurex
+        working-directory: app
+        run: npx cap sync android
+
+      - name: Instalar Pillow
+        run: python3 -m pip install --upgrade pillow
+
+      - name: Instalar funciones nativas Aurex
+        working-directory: app
+        run: python3 scripts/install_android_native.py
+
+      - name: Compilar APK
+        working-directory: app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Preparar APK
+        run: |
+          cp app/android/app/build/outputs/apk/debug/app-debug.apk Aurex.apk
+          ls -lh Aurex.apk
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aurex-APK
+          path: Aurex.apk
+          if-no-files-found: error
